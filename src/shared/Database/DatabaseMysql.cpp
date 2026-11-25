@@ -89,6 +89,21 @@ bool MySQLConnection::OpenConnection(bool reconnect)
 
     mysql_options(mysqlInit, MYSQL_SET_CHARSET_NAME, "utf8");
 
+    // MariaDB Connector/C 3.4+ enables peer TLS verification by default, which
+    // forces a TLS handshake even against a local skip-ssl mysqld. Turn it off.
+#ifdef MYSQL_OPT_SSL_VERIFY_SERVER_CERT
+    {
+        my_bool verify_server_cert = 0;
+        mysql_options(mysqlInit, MYSQL_OPT_SSL_VERIFY_SERVER_CERT, &verify_server_cert);
+    }
+#endif
+#ifdef MYSQL_OPT_SSL_ENFORCE
+    {
+        my_bool enforce_ssl = 0;
+        mysql_options(mysqlInit, MYSQL_OPT_SSL_ENFORCE, &enforce_ssl);
+    }
+#endif
+
     if (m_use_socket)                                           // socket use option (Unix/Linux)
     {
         unsigned int opt = MYSQL_PROTOCOL_SOCKET;
