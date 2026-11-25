@@ -8,6 +8,10 @@
 
 #ifdef _WIN32
 #include <windows.h>
+#elif defined(__APPLE__)
+#include <mach-o/dyld.h>
+#include <mach-o/getsect.h>
+#include <unistd.h>
 #else
 #include <link.h>
 #include <unistd.h>
@@ -53,6 +57,21 @@ namespace
         for (WORD index = 0; index < nt->FileHeader.NumberOfSections; ++index, ++section)
             if (section->Characteristics & IMAGE_SCN_MEM_EXECUTE)
                 AddRange(base + section->VirtualAddress, RoundUpToPage(section->Misc.VirtualSize, system.dwPageSize));
+    }
+#elif defined(__APPLE__)
+    void FindCodeRanges()
+    {
+        size_t const page = size_t(sysconf(_SC_PAGESIZE));
+        mach_header_64 const* header = reinterpret_cast<mach_header_64 const*>(_dyld_get_image_header(0));
+        if (!header)
+            return;
+        unsigned long size = 0;
+        unsigned char* section = getsectiondata(header, SEG_TEXT, SECT_TEXT, &size);
+        if (!section || !size)
+            return;
+        uintptr_t const address = reinterpret_cast<uintptr_t>(section);
+        uintptr_t const start = address / page * page;
+        AddRange(reinterpret_cast<unsigned char const*>(start), RoundUpToPage(size + (address - start), page));
     }
 #else
     int AddMainProgramRanges(dl_phdr_info* info, size_t, void*)
